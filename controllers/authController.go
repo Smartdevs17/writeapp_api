@@ -6,6 +6,7 @@ import (
 	"time"
 	"writeapp_api/initializers"
 	"writeapp_api/models"
+	"writeapp_api/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -28,9 +29,7 @@ func Register(c *gin.Context) {
 	}
 
 	if body.Name == "" || body.Email == "" || body.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Name, Email and Password are required",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Name, Email and Password are required")
 		return
 	}
 
@@ -43,14 +42,20 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	//check if the email already exists
+	var user models.User
+	userExist := initializers.DB.Where("email = ?", body.Email).First(&user)
+	if userExist.Error == nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Email already exists")
+		return
+	}
+
 	//Add the new user to the database
 	newUser := models.User{Name: body.Name, Email: body.Email, Password: string(hash)}
 	result := initializers.DB.Create(&newUser)
 
 	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to create user",
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", result.Error.Error())
 		return
 	}
 
@@ -69,17 +74,13 @@ func Login(c *gin.Context) {
 	}
 
 	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read body",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Failed to read body")
 		return
 	}
 
 	//Email and Password is required
 	if body.Email == "" || body.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Email and Password are required",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Email and Password are required")
 		return
 	}
 
@@ -89,20 +90,14 @@ func Login(c *gin.Context) {
 
 	//Check if the user exists
 	if user.ID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "User not found",
-		})
+		utils.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Invalid email or password")
 		return
 	}
 
 	//validate the user password
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Invalid email or password",
-			"error":   "Invalid email or password",
-		})
+		utils.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Invalid email or password")
 		return
 	}
 
@@ -116,9 +111,7 @@ func Login(c *gin.Context) {
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to generate token",
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "internal server error", err.Error())
 		return
 	}
 	user.Token = tokenString
