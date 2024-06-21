@@ -13,6 +13,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type UserResponse struct {
+	ID        uint      `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	Token     string    `json:"token"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 func Register(c *gin.Context) {
 	//Get the request body
 	var body struct {
@@ -36,9 +46,7 @@ func Register(c *gin.Context) {
 	//HashPassword
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to hash password",
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err.Error())
 		return
 	}
 
@@ -58,12 +66,8 @@ func Register(c *gin.Context) {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", result.Error.Error())
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "User created successfully",
-		"data":    newUser,
-	})
+	utils.SuccessResponse(c, http.StatusOK, "User created successfully", newUser)
+	return
 }
 
 func Login(c *gin.Context) {
@@ -116,22 +120,25 @@ func Login(c *gin.Context) {
 	}
 	user.Token = tokenString
 	initializers.DB.Save(&user)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "User logged in successfully",
-		"data":    user,
-	})
+
+	userResponse := UserResponse{
+		ID:        user.ID,
+		Name:      user.Name,
+		Email:     user.Email,
+		Role:      user.Role,
+		Token:     user.Token,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, "User logged in successfully", userResponse)
+	return
 }
 
 func ValidateAuth(c *gin.Context) {
 	//Get the user from the context
 	user, _ := c.Get("user")
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "User is authenticated",
-		"data":    user,
-	})
+	utils.SuccessResponse(c, http.StatusOK, "User is authenticated", user)
 }
 
 func ResetPassword(c *gin.Context) {
@@ -142,40 +149,29 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read body",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Failed to read body")
 		return
 	}
 
 	if body.Email == "" || body.NewPassword == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Email and NewPassword are required",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Email and NewPassword are required")
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.NewPassword), 10)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to hash password",
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "internal server error", err.Error())
 		return
 	}
 
 	var user models.User
 	initializers.DB.First(&user, "email = ?", body.Email)
 	if user.ID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "User not found",
-		})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "User not found")
 		return
 	}
 	user.Password = string(hash)
 	initializers.DB.Save(&user)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Password reset successfully",
-		"data":    nil,
-	})
+	utils.SuccessResponse(c, http.StatusOK, "Password reset successfully", nil)
+	return
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"writeapp_api/initializers"
 	"writeapp_api/models"
+	"writeapp_api/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,27 +19,25 @@ func CreateDocument(c *gin.Context) {
 	}
 
 	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Failed to read body")
 		return
 	}
 
 	if body.Title == "" || body.Content == "" || body.Author == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Title, Content and Author are required"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Title, Content and Author are required")
 		return
 	}
 
-	//Get the user from the context
 	user, _ := c.Get("user")
 
-	newDocument := models.Document{Title: body.Title, Content: body.Content, Author: body.Author, UserID: user.(models.User).ID}
+	newDocument := models.Document{Title: body.Title, Content: body.Content, Author: body.Author, Count: body.Count, UserID: user.(models.User).ID}
 	result := initializers.DB.Create(&newDocument).Preload("User")
 
 	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create document"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "error", "Failed to create document")
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Document created successfully", "data": newDocument})
+	utils.SuccessResponse(c, http.StatusOK, "Document created successfully", newDocument)
 }
 
 func GetDocuments(c *gin.Context) {
@@ -46,18 +45,18 @@ func GetDocuments(c *gin.Context) {
 
 	initializers.DB.Find(&documents)
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Documents fetched successfully", "data": documents})
+	utils.SuccessResponse(c, http.StatusOK, "Documents fetched successfully", documents)
 }
 
 func GetDocument(c *gin.Context) {
 	var document models.Document
 
 	if initializers.DB.First(&document, c.Param("id")).Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Document not found"})
+		utils.ErrorResponse(c, http.StatusNotFound, "Not Found", "Document not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Document fetched successfully", "data": document})
+	utils.SuccessResponse(c, http.StatusOK, "Document fetched successfully", document)
 }
 
 func UpdateDocument(c *gin.Context) {
@@ -68,41 +67,38 @@ func UpdateDocument(c *gin.Context) {
 	}
 
 	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "bad request", "Failed to read body")
 		return
 	}
 
 	var document models.Document
 
 	if initializers.DB.First(&document, c.Param("id")).Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Document not found"})
+		utils.ErrorResponse(c, http.StatusNotFound, "Not Found", "Document not found")
 		return
 	}
 
 	initializers.DB.Model(&document).Updates(models.Document{Title: body.Title, Content: body.Content, Author: body.Author})
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Document updated successfully", "data": document})
+	utils.SuccessResponse(c, http.StatusOK, "Document updated successfully", document)
 }
 
 func DeleteDocument(c *gin.Context) {
 	var document models.Document
 
 	if initializers.DB.First(&document, c.Param("id")).Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Document not found"})
+		utils.ErrorResponse(c, http.StatusNotFound, "Not Found", "Document not found")
 		return
 	}
 
 	initializers.DB.Delete(&document)
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Document deleted successfully"})
+	utils.SuccessResponse(c, http.StatusOK, "Document deleted successfully", nil)
 }
 
 func GetDocumentsByAuthor(c *gin.Context) {
 	var documents []models.Document
 
 	initializers.DB.Where("author = ?", c.Param("author")).Find(&documents)
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Documents fetched successfully", "data": documents})
+	utils.SuccessResponse(c, http.StatusOK, "Documents fetched successfully", documents)
 }
 
 func GetUserDocuments(c *gin.Context) {
@@ -112,19 +108,17 @@ func GetUserDocuments(c *gin.Context) {
 	num64, _ := strconv.ParseUint(user_id, 10, 32)
 	num := uint(num64)
 	if num != user.(models.User).ID {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized"})
+		utils.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "You are not authorized to access this resource")
 		return
 	}
 
 	initializers.DB.Where("user_id = ?", user.(models.User).ID).Preload("User").Find(&documents)
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Documents fetched successfully", "data": documents})
+	utils.SuccessResponse(c, http.StatusOK, "Documents fetched successfully", documents)
 }
 
 func SearchDocuments(c *gin.Context) {
 	var documents []models.Document
 
 	initializers.DB.Where("title LIKE ?", "%"+c.Query("title")+"%").Find(&documents)
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Documents fetched successfully", "data": documents})
+	utils.SuccessResponse(c, http.StatusOK, "Documents fetched successfully", documents)
 }
