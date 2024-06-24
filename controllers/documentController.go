@@ -64,6 +64,7 @@ func UpdateDocument(c *gin.Context) {
 		Title   string
 		Content string
 		Author  string
+		Count   int
 	}
 
 	if c.Bind(&body) != nil {
@@ -78,7 +79,7 @@ func UpdateDocument(c *gin.Context) {
 		return
 	}
 
-	initializers.DB.Model(&document).Updates(models.Document{Title: body.Title, Content: body.Content, Author: body.Author})
+	initializers.DB.Model(&document).Updates(models.Document{Title: body.Title, Content: body.Content, Author: body.Author, Count: body.Count})
 	utils.SuccessResponse(c, http.StatusOK, "Document updated successfully", document)
 }
 
@@ -117,8 +118,44 @@ func GetUserDocuments(c *gin.Context) {
 }
 
 func SearchDocuments(c *gin.Context) {
+	// Get the authenticated user from the context
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "bad request", "User not found")
+		return
+	}
+
+	// Extract user ID from the user object
+	user_id := user.(models.User).ID
+
+	// Query parameter for search filter
+	search := c.Query("search")
+
+	// Define a slice to hold the documents
 	var documents []models.Document
 
-	initializers.DB.Where("title LIKE ?", "%"+c.Query("title")+"%").Find(&documents)
+	// Construct the base query with user_id
+	query := initializers.DB.Where("user_id = ?", user_id)
+
+	// Add conditions for title and/or content filters if provided
+	if search != "" {
+		query = query.Where("title ILIKE ? OR content ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Execute the query
+	if err := query.Find(&documents).Error; err != nil {
+		// Handle database error
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch documents", err.Error())
+		return
+	}
+
+	// Check if no documents were found
+	if len(documents) == 0 {
+		// Respond with an empty array
+		utils.SuccessResponse(c, http.StatusOK, "No documents found", []models.Document{})
+		return
+	}
+
+	// Respond with the documents found
 	utils.SuccessResponse(c, http.StatusOK, "Documents fetched successfully", documents)
 }

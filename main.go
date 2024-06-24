@@ -24,11 +24,11 @@ func main() {
 	r.POST("/api/auth/resetpassword", controllers.ResetPassword)
 	r.POST("/api/documents", middleware.AuthMiddleware, controllers.CreateDocument)
 	r.GET("/api/documents", middleware.AuthMiddleware, controllers.GetDocuments)
-	r.GET("/api/documents/:id", middleware.AuthMiddleware, controllers.GetDocument)
+	r.GET("/api/documents/search", middleware.AuthMiddleware, controllers.SearchDocuments)
+	r.GET("/api/documents/single/:id", middleware.AuthMiddleware, controllers.GetDocument)
 	r.GET("/api/documents/user/:id", middleware.AuthMiddleware, controllers.GetUserDocuments)
 	r.PUT("/api/documents/:id", middleware.AuthMiddleware, controllers.UpdateDocument)
 	r.DELETE("/api/documents/:id", middleware.AuthMiddleware, controllers.DeleteDocument)
-	r.GET("/api/documents/search/:query", middleware.AuthMiddleware, controllers.SearchDocuments)
 
 	r.Run() // listen and serve on localhost:3000
 }
